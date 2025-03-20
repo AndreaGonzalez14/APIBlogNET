@@ -23,13 +23,25 @@ namespace FirstAPINet.Controllers
 
         // GET: api/Comments
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Comment>>> GetComment()
+        public async Task<IActionResult> GetComment()
         {
             try
             {
-                var listComment = await _context.Comments.ToListAsync();//consult LINQ 
+                var listComment = await _context.Comments
+                    .Include(p => p.Post)
+                    .ToListAsync();//consult LINQ 
 
-                return listComment;
+                var dataComment = listComment.Select(c => new
+                {
+                    c.Id,
+                    c.Title,
+                    c.Creator,
+                    c.Text,
+                    c.CreationDate,
+                    c.PostId
+                });
+
+                return Ok(dataComment);
 
             }catch(Exception ex)
             {
@@ -50,7 +62,7 @@ namespace FirstAPINet.Controllers
 
         // GET: api/Comments/5
         [HttpGet("{id}")]
-        public async Task<ActionResult<Comment>> GetComment(int id)
+        public async Task<IActionResult> GetComment(int id)
         {
             var comment = await _context.Comments.FindAsync(id);
 
@@ -59,7 +71,17 @@ namespace FirstAPINet.Controllers
                 return NotFound();
             }
 
-            return comment;
+            var dataComment = new
+            {
+                comment.Id,
+                comment.Title,
+                comment.Creator,
+                comment.Text,
+                comment.CreationDate,
+                comment.PostId
+            };
+
+            return Ok(dataComment);
         }
 
         // PUT: api/Comments/5
@@ -72,11 +94,16 @@ namespace FirstAPINet.Controllers
                 return BadRequest();
             }
 
-            _context.Entry(comment).State = EntityState.Modified;
+            var commentToUpdate = await _context.Comments
+                .FirstOrDefaultAsync(c => c.Id == id);
 
-            //_context.Entry(comment).Property(c => c.Text).IsModified = true;
+            /*_context.Entry(comment).State = EntityState.Modified;
+            _context.Entry(comment).Property(c => c.Text).IsModified = true;
+            _context.Update(comment);*/
 
-            //_context.Update(comment);
+            commentToUpdate.Title = comment.Title;
+            commentToUpdate.Text = comment.Text;
+
 
 
             try
@@ -95,18 +122,29 @@ namespace FirstAPINet.Controllers
                 }
             }
 
-            return NoContent();
+            return Ok(new { message = "Comment Updated Success!" });
         }
 
         // POST: api/Comments
         // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
-        [HttpPost]
-        public async Task<ActionResult<Comment>> PostComment(Comment comment)
+        [HttpPost("{postId}/comment")]
+        public async Task<ActionResult<Comment>> PostComment(int postId,Comment comment)
         {
+            var post = await _context.Posts.FindAsync(postId); // Buscar el post
+
+            if (post == null)
+            {
+                return NotFound();
+            }
+
+            comment.PostId = post.Id;
+
             _context.Comments.Add(comment);
             await _context.SaveChangesAsync();
 
-            return CreatedAtAction("GetComment", new { id = comment.Id }, comment); //return created object HTTP 201 Created and link to get new resource
+            //return CreatedAtAction("GetComment", new { id = comment.Id }, comment); //return created object HTTP 201 Created and link to get new resource
+
+            return Ok(new { message = "Comment Created!" });
         }
 
         // DELETE: api/Comments/5
